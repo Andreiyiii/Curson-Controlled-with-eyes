@@ -1,8 +1,9 @@
 import cv2
-import eye_tracker      # Modulul tău pentru MediaPipe
-import mouse_control    # Modulul tău pentru PyAutoGUI
-import utils            # Modulul tău pentru calcule (EAR)
-import config           # Fișierul tău de setări
+import time
+import eye_tracker     
+import mouse_control    
+import utils           
+import config         
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -11,6 +12,7 @@ def main():
         return
 
     print("Press ESC to cancel")
+    last_click_time = 0.0
 
     while True:
         ret, frame = cap.read()
@@ -21,15 +23,23 @@ def main():
 
         if landmarks:
             # find where you look
-            x, y = utils.get_gaze_coordinates(landmarks, frame.shape)
+            x, y = utils.get_eye_coordinates(
+                landmarks,
+                frame.shape,
+                gain_x=config.CURSOR_GAIN_X,
+                gain_y=config.CURSOR_GAIN_Y,
+            )
             
             #move mouse
-            mouse_control.move(x, y)
+            if x is not None and y is not None:
+                mouse_control.move(x, y)
 
             #blinking click
-            if utils.detect_blink(landmarks, threshold=config.EAR_THRESHOLD):
-                mouse_control.click()
-                #sleep maybe
+            if utils.detect_blink(landmarks, threshold=config.EAR_THRESHOLD, ear_window=config.EAR_SMOOTHING_WINDOW):
+                now = time.monotonic()
+                if now - last_click_time >= config.CLICK_COOLDOWN_SECONDS:
+                    mouse_control.click()
+                    last_click_time = now
 
             eye_tracker.draw_landmarks(frame, landmarks)
 
